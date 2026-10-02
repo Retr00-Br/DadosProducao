@@ -85,7 +85,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. HEADER DA APLICAÇÃO WITH LOGO
+# 2. HEADER DA APLICAÇÃO
 # ==========================================
 col_logo, col_titulo = st.columns([1, 4])
 
@@ -232,30 +232,29 @@ with c4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Configuração Padrão do Plotly com Legenda Interna
+# Layout Plotly com Legenda no Topo (Fora das Barras)
 LAYOUT_PLOTLY = dict(
     paper_bgcolor=BG_CARD,
     plot_bgcolor=BG_CARD,
     font=dict(color=TEXT_WHITE, family="Sans-serif", size=12),
     xaxis=dict(gridcolor="#1E293B", tickangle=-45, showgrid=True, tickfont=dict(color=TEXT_WHITE)),
     yaxis=dict(gridcolor="#1E293B", showgrid=True, tickfont=dict(color=TEXT_WHITE)),
-    margin=dict(l=40, r=20, t=30, b=50),
+    margin=dict(l=40, r=20, t=50, b=50),
     showlegend=True,
     legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.03,
+        xanchor="right",
+        x=1,
         font=dict(color=TEXT_WHITE, size=11),
-        yanchor="top",
-        y=0.96,
-        xanchor="left",
-        x=0.02,
-        bgcolor="rgba(10, 17, 40, 0.75)",
-        bordercolor="rgba(255, 255, 255, 0.25)",
-        borderwidth=1
+        bgcolor="rgba(0,0,0,0)"
     ),
     hoverlabel=dict(bgcolor="#0A1128", font_color=TEXT_WHITE, font_size=12)
 )
 
 # ==========================================
-# 6. GRÁFICOS INTERATIVOS COM LEGENDAS INTERNAS
+# 6. GRÁFICOS INTERATIVOS
 # ==========================================
 
 col_graf1, col_graf2 = st.columns(2)
@@ -305,7 +304,6 @@ col_graf3, col_graf4 = st.columns(2)
 with col_graf3:
     st.markdown("##### ⏳ Saldo de Pendência de Produção Diária")
     
-    # Criamos 2 traços separados para que a legenda identifique Acúmulo (+) e Baixa (-)
     df_pos = df_filtrado.copy()
     df_pos['Pendente_Pos'] = df_pos['Pendente de Produção'].apply(lambda x: x if x > 0 else None)
     df_neg = df_filtrado.copy()
