@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import datetime
 import os
 
 # ==========================================
-# 1. CONFIGURAÇÃO DA PÁGINA E PALETA DARK NAVY
+# 1. CONFIGURAÇÃO DA PÁGINA E PALETA DARK
 # ==========================================
 st.set_page_config(
     page_title="HIGIMED — Operação & Produção",
@@ -15,17 +15,17 @@ st.set_page_config(
     layout="wide"
 )
 
-# Paleta de Cores HIGIMED - Tema Azul Escuro Executivo (Dark Navy)
-BG_MAIN = "#0B132B"         # Fundo Geral Azul Bem Escuro
-BG_CARD = "#1C2541"         # Fundo dos Cards e Gráficos (Azul Marinho)
-COLOR_PRIMARY = "#00B4D8"   # Azul Cyan Brilhante (Destaque Principal)
-COLOR_SECONDARY = "#90E0EF" # Azul Claro Suave (Texto e Linhas)
-TEXT_WHITE = "#F8FAFC"      # Texto Principal
-TEXT_MUTED = "#94A3B8"      # Texto Secundário
+# Paleta de Cores HIGIMED - Dark Navy Executivo
+BG_MAIN = "#0B132B"         # Fundo Geral Azul Escuro
+BG_CARD = "#1C2541"         # Fundo dos Cards e Gráficos
+COLOR_PRIMARY = "#00B4D8"   # Azul Cyan Destaque
+COLOR_SECONDARY = "#90E0EF" # Azul Claro
+TEXT_WHITE = "#FFFFFF"      # Texto Branco Puro
+TEXT_MUTED = "#CBD5E1"      # Texto Secundário Claro
 COLOR_ALERT = "#FF4D6D"      # Alerta Vermelho Neon
 COLOR_SUCCESS = "#38B000"    # Verde Sucesso
 
-# Estilização CSS Personalizada (Tema Escuro BI)
+# Estilização CSS Personalizada (Textos em Branco Puro e Inputs Customizados)
 st.markdown(f"""
     <style>
         /* Fundo da Aplicação */
@@ -36,7 +36,18 @@ st.markdown(f"""
         [data-testid="stSidebar"] {{
             background-color: #0A1128;
         }}
-        /* Títulos */
+        
+        /* Forçar todos os Rótulos e Textos da Barra Lateral em Branco */
+        [data-testid="stSidebar"] label, 
+        [data-testid="stSidebar"] .stMarkdown p,
+        [data-testid="stSidebar"] h1, 
+        [data-testid="stSidebar"] h2, 
+        [data-testid="stSidebar"] h3 {{
+            color: {TEXT_WHITE} !important;
+            font-weight: 600 !important;
+        }}
+        
+        /* Títulos do Painel */
         .main-title {{
             color: {TEXT_WHITE};
             font-size: 2.2rem;
@@ -48,6 +59,7 @@ st.markdown(f"""
             font-size: 1rem;
             margin-bottom: 20px;
         }}
+        
         /* Cards KPI */
         .kpi-card {{
             background-color: {BG_CARD};
@@ -58,7 +70,7 @@ st.markdown(f"""
         }}
         .kpi-title {{
             color: {TEXT_MUTED};
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -72,28 +84,8 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-def aplicar_estilo_higimed_dark():
-    sns.set_theme(style="dark", font="sans-serif")
-    plt.rcParams.update({
-        'figure.facecolor': BG_CARD,
-        'axes.facecolor': BG_CARD,
-        'axes.edgecolor': '#334155',
-        'axes.labelcolor': TEXT_MUTED,
-        'axes.titlesize': 13,
-        'axes.titleweight': 'bold',
-        'axes.titlecolor': TEXT_WHITE,
-        'grid.color': '#1E293B',
-        'grid.linestyle': '--',
-        'grid.alpha': 0.6,
-        'xtick.color': TEXT_MUTED,
-        'ytick.color': TEXT_MUTED,
-        'font.size': 10
-    })
-
-aplicar_estilo_higimed_dark()
-
 # ==========================================
-# 2. HEADER DA APLICAÇÃO
+# 2. HEADER DA APLICAÇÃO WITH LOGO
 # ==========================================
 col_logo, col_titulo = st.columns([1, 4])
 
@@ -138,14 +130,12 @@ def formatar_data_pt(d):
 def processar_dados(file):
     df = pd.read_excel(file, sheet_name=0)
     
-    # Remover linhas de totais ou médias
+    # Limpeza de linhas irrelevantes
     df = df[~df['Dias'].astype(str).str.contains('Média|Soma|Total', case=False, na=False)].copy()
     
-    # Converter para objeto Date
+    # Tratamento de datas
     df['Data_Obj'] = df['Dias'].apply(parse_dia_to_date)
     df = df.dropna(subset=['Data_Obj']).sort_values('Data_Obj')
-    
-    # Formatação padronizada em Português (Ex: 03/Ago)
     df['Dia_Formatado'] = df['Data_Obj'].apply(formatar_data_pt)
     
     # Tratamento numérico
@@ -170,7 +160,7 @@ else:
     st.stop()
 
 # ==========================================
-# 4. FILTRO DINÂMICO DE DATA (CALENDÁRIO)
+# 4. FILTRO DINÂMICO DE DATAS
 # ==========================================
 st.sidebar.header("📅 Filtro de Período")
 
@@ -199,7 +189,7 @@ if df_filtrado.empty:
     st.stop()
 
 # ==========================================
-# 5. CARDS DE KPI (TEMA ESCURO)
+# 5. CARDS DE KPI EXECUTIVOS
 # ==========================================
 total_nf = df_filtrado['Contagem de Nr.NF'].sum()
 media_nf_dia = df_filtrado['Contagem de Nr.NF'].mean()
@@ -242,73 +232,94 @@ with c4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# Layout do Tema Plotly Dark
+LAYOUT_PLOTLY = dict(
+    paper_bgcolor=BG_CARD,
+    plot_bgcolor=BG_CARD,
+    font=dict(color=TEXT_WHITE, family="Sans-serif"),
+    xaxis=dict(gridcolor="#1E293B", tickangle=-45, showgrid=True),
+    yaxis=dict(gridcolor="#1E293B", showgrid=True),
+    margin=dict(l=40, r=20, t=40, b=50),
+    hoverlabel=dict(bgcolor="#0A1128", font_color=TEXT_WHITE, font_size=12)
+)
+
 # ==========================================
-# 6. GRÁFICOS DO PAINEL (CONTRASTE DARK)
+# 6. GRÁFICOS INTERATIVOS (PLOTLY HOVER)
 # ==========================================
 
 col_graf1, col_graf2 = st.columns(2)
 
 with col_graf1:
     st.markdown("##### 🎯 NFs Emitidas vs. Meta Diária (120)")
-    fig1, ax1 = plt.subplots(figsize=(10, 5))
     
-    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Contagem de Nr.NF', color=COLOR_PRIMARY, ax=ax1)
-    ax1.axhline(y=120, color=COLOR_ALERT, linestyle='--', linewidth=2, label='Meta Diária (120)')
-    
-    ax1.set_xlabel("")
-    ax1.set_ylabel("Contagem de NFs")
-    ax1.tick_params(axis='x', rotation=45, labelsize=8)
-    sns.despine(top=True, right=True)
-    ax1.legend(loc="upper right", facecolor=BG_CARD, edgecolor='none', labelcolor=TEXT_WHITE)
-    
-    st.pyplot(fig1, use_container_width=True)
+    fig1 = go.Figure()
+    fig1.add_trace(go.Bar(
+        x=df_filtrado['Dia_Formatado'],
+        y=df_filtrado['Contagem de Nr.NF'],
+        name="NFs Emitidas",
+        marker_color=COLOR_PRIMARY,
+        hovertemplate="<b>Data:</b> %{x}<br><b>NFs Emitidas:</b> %{y}<extra></extra>"
+    ))
+    fig1.add_trace(go.Scatter(
+        x=df_filtrado['Dia_Formatado'],
+        y=[120] * len(df_filtrado),
+        mode='lines',
+        name="Meta Diária (120)",
+        line=dict(color=COLOR_ALERT, dash='dash', width=2),
+        hovertemplate="<b>Meta:</b> 120 NFs<extra></extra>"
+    ))
+    fig1.update_layout(**LAYOUT_PLOTLY, height=380, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    st.plotly_chart(fig1, use_container_width=True)
 
 with col_graf2:
     st.markdown("##### 📦 Volume Total de Peças Processadas por Dia")
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
     
-    ax2.plot(df_filtrado['Dia_Formatado'], df_filtrado['Soma de Qtd Total SKU'], color=COLOR_SECONDARY, marker='o', linewidth=2.2, markersize=4)
-    ax2.fill_between(range(len(df_filtrado)), df_filtrado['Soma de Qtd Total SKU'], color=COLOR_PRIMARY, alpha=0.25)
-    
-    ax2.set_xlabel("")
-    ax2.set_ylabel("Quantidade Total SKU")
-    ax2.tick_params(axis='x', rotation=45, labelsize=8)
-    sns.despine(top=True, right=True)
-    
-    st.pyplot(fig2, use_container_width=True)
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(
+        x=df_filtrado['Dia_Formatado'],
+        y=df_filtrado['Soma de Qtd Total SKU'],
+        mode='lines+markers',
+        name="Qtd Peças",
+        line=dict(color=COLOR_SECONDARY, width=3),
+        marker=dict(size=6, color=COLOR_PRIMARY),
+        fill='tozeroy',
+        fillcolor='rgba(0, 180, 216, 0.15)',
+        hovertemplate="<b>Data:</b> %{x}<br><b>Peças Processadas:</b> %{y:,.0f}<extra></extra>"
+    ))
+    fig2.update_layout(**LAYOUT_PLOTLY, height=380)
+    st.plotly_chart(fig2, use_container_width=True)
 
 col_graf3, col_graf4 = st.columns(2)
 
 with col_graf3:
     st.markdown("##### ⏳ Saldo de Pendência de Produção Diária")
-    fig3, ax3 = plt.subplots(figsize=(10, 5))
     
-    cores_pendencia = [COLOR_ALERT if x > 0 else COLOR_SUCCESS for x in df_filtrado['Pendente de Produção']]
+    cores_pend = [COLOR_ALERT if x > 0 else COLOR_SUCCESS for x in df_filtrado['Pendente de Produção']]
     
-    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Pendente de Produção', palette=cores_pendencia, ax=ax3)
-    ax3.axhline(y=0, color='#64748B', linewidth=0.8)
-    
-    ax3.set_xlabel("")
-    ax3.set_ylabel("Pendência (Pedidos)")
-    ax3.tick_params(axis='x', rotation=45, labelsize=8)
-    sns.despine(top=True, right=True)
-    
-    st.pyplot(fig3, use_container_width=True)
+    fig3 = go.Figure()
+    fig3.add_trace(go.Bar(
+        x=df_filtrado['Dia_Formatado'],
+        y=df_filtrado['Pendente de Produção'],
+        marker_color=cores_pend,
+        hovertemplate="<b>Data:</b> %{x}<br><b>Pendência:</b> %{y} pedidos<extra></extra>"
+    ))
+    fig3.update_layout(**LAYOUT_PLOTLY, height=380)
+    st.plotly_chart(fig3, use_container_width=True)
 
 with col_graf4:
     st.markdown("##### 🏷️ Diversidade de SKUs Únicos Movimentados por Dia")
-    fig4, ax4 = plt.subplots(figsize=(10, 5))
     
-    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Contagem de SKU', color=COLOR_SECONDARY, ax=ax4)
-    
-    ax4.set_xlabel("")
-    ax4.set_ylabel("Variedade de SKUs")
-    ax4.tick_params(axis='x', rotation=45, labelsize=8)
-    sns.despine(top=True, right=True)
-    
-    st.pyplot(fig4, use_container_width=True)
+    fig4 = go.Figure()
+    fig4.add_trace(go.Bar(
+        x=df_filtrado['Dia_Formatado'],
+        y=df_filtrado['Contagem de SKU'],
+        marker_color=COLOR_SECONDARY,
+        hovertemplate="<b>Data:</b> %{x}<br><b>SKUs Distintos:</b> %{y}<extra></extra>"
+    ))
+    fig4.update_layout(**LAYOUT_PLOTLY, height=380)
+    st.plotly_chart(fig4, use_container_width=True)
 
-# Exibição da Tabela Tratada
+# Tabela Interativa
 with st.expander("📄 Visualizar Tabela Tratada da Operação"):
     st.dataframe(
         df_filtrado[['Data_Obj', 'Dia_Formatado', 'Contagem de Nr.NF', 'Pedido Diarios', 'Pendente de Produção', 'Soma de Qtd Total SKU', 'Contagem de SKU']],
