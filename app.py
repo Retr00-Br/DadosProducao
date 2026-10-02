@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import datetime
 import os
 
 # ==========================================
@@ -14,15 +15,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# Paleta de Cores HIGIMED / Master
+# Paleta de Cores HIGIMED
 COLOR_PRIMARY = "#0088CC"     # Cyan/Azul HIGIMED Principal
 COLOR_SECONDARY = "#0A2B4C"   # Azul Marinho Executivo
-COLOR_ACCENT = "#4FA8DE"      # Azul Claro de Suporte
-COLOR_BG_CARD = "#F4F8FA"     # Fundo dos Cards de KPI
+COLOR_ACCENT = "#4FA8DE"      # Azul Claro
+COLOR_BG_CARD = "#F4F8FA"     # Fundo dos Cards
 COLOR_ALERT = "#E63946"       # Cor de Alerta para Pendências Altas
 COLOR_SUCCESS = "#10B981"     # Verde para Metas Alcançadas
 
-# Estilização CSS dos Cards e Interface estilo BI
+# Estilização CSS dos Cards e Interface
 st.markdown(f"""
     <style>
         [data-testid="stSidebar"] {{
@@ -69,66 +70,78 @@ def aplicar_estilo_higimed():
         'axes.facecolor': 'none',
         'axes.edgecolor': '#E2E8F0',
         'axes.labelcolor': COLOR_SECONDARY,
-        'axes.titlesize': 12,
+        'axes.titlesize': 13,
         'axes.titleweight': 'bold',
         'axes.titlecolor': COLOR_SECONDARY,
         'xtick.color': '#64748B',
         'ytick.color': '#64748B',
-        'font.size': 9
+        'font.size': 10
     })
 
 aplicar_estilo_higimed()
 
 # ==========================================
-# 2. HEADER DA APLICAÇÃO COM LOGO
+# 2. HEADER DA APLICAÇÃO
 # ==========================================
 col_logo, col_titulo = st.columns([1, 4])
 
 with col_logo:
-    # Tenta carregar a imagem 'logo.png' da pasta local
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     elif os.path.exists("logo2.png"):
         st.image("logo2.png", use_container_width=True)
     else:
-        st.write("🏥") # Fallback visual caso não encontre o arquivo de imagem
+        st.write("🏥")
 
 with col_titulo:
     st.markdown("<div class='main-title'>HIGIMED — Painel de Produção & Operação</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-title'>Acompanhamento diário de NFs, metas, pendências e volumes de SKU</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 3. CARREGAMENTO E TRATAMENTO DA PLANILHA
+# 3. TRATAMENTO INTELIGENTE DE DATAS
 # ==========================================
-st.sidebar.header("📁 Importar Planilha")
-arquivo = st.sidebar.file_uploader("Envie a planilha em Excel (.xlsx)", type=["xlsx"])
+MONTH_MAP = {'ago': 8, 'set': 9, 'sep': 9, 'out': 10, 'jul': 7, 'jun': 6}
 
-# Opção complementar para upload de logo na barra lateral se desejar trocar
-logo_upload = st.sidebar.file_uploader("Alterar Logo (Opcional)", type=["png", "jpg", "jpeg"])
-if logo_upload is not None:
-    with open("logo.png", "wb") as f:
-        f.write(logo_upload.getbuffer())
-    st.sidebar.success("Logo atualizada!")
+def parse_dia_to_date(val):
+    if isinstance(val, (datetime.datetime, pd.Timestamp)):
+        return val.date()
+    val_str = str(val).strip().lower()
+    try:
+        parts = val_str.split('/')
+        day = int(parts[0])
+        month_str = parts[1]
+        month = MONTH_MAP.get(month_str, 8)
+        return datetime.date(2026, month, day)
+    except Exception:
+        return None
 
 @st.cache_data
 def processar_dados(file):
-    # Lê a primeira aba da planilha
     df = pd.read_excel(file, sheet_name=0)
     
-    # Remover linhas finais de Resumo/Média da planilha
+    # Remover linhas de totais ou médias
     df = df[~df['Dias'].astype(str).str.contains('Média|Soma|Total', case=False, na=False)].copy()
     
-    # Tratamento de tipos numéricos
+    # Converter para objeto Date do Python
+    df['Data_Obj'] = df['Dias'].apply(parse_dia_to_date)
+    df = df.dropna(subset=['Data_Obj']).sort_values('Data_Obj')
+    
+    # Formatação limpa de exibição no gráfico
+    df['Dia_Formatado'] = df['Data_Obj'].apply(lambda d: d.strftime('%d/%b'))
+    
+    # Tratamento numérico
     df['Contagem de Nr.NF'] = pd.to_numeric(df['Contagem de Nr.NF'], errors='coerce').fillna(0)
     df['Pedido Diarios'] = pd.to_numeric(df['Pedido Diarios'], errors='coerce').fillna(0)
     df['Pendente de Produção'] = pd.to_numeric(df['Pendente de Produção'], errors='coerce').fillna(0)
     df['Contagem de SKU'] = pd.to_numeric(df['Contagem de SKU'], errors='coerce').fillna(0)
     
-    # Limpa coluna de Qtd Total SKU (extrai apenas os números)
     df['Soma de Qtd Total SKU'] = df['Soma de Qtd Total SKU'].astype(str).str.extract(r'(\d+)')[0]
     df['Soma de Qtd Total SKU'] = pd.to_numeric(df['Soma de Qtd Total SKU'], errors='coerce').fillna(0)
     
     return df
+
+st.sidebar.header("📁 Importar Planilha")
+arquivo = st.sidebar.file_uploader("Envie a planilha em Excel (.xlsx)", type=["xlsx"])
 
 if arquivo is not None:
     df = processar_dados(arquivo)
@@ -138,20 +151,32 @@ else:
     st.stop()
 
 # ==========================================
-# 4. FILTROS INTERATIVOS
+# 4. FILTRO DINÂMICO DE DATA (CALENDÁRIO / INTERVALO)
 # ==========================================
-st.sidebar.header("🔍 Filtro de Período")
-dias_disponiveis = df['Dias'].tolist()
-dias_selecionados = st.sidebar.multiselect(
-    "Filtrar por Dias:",
-    options=dias_disponiveis,
-    default=dias_disponiveis
+st.sidebar.header("📅 Filtro de Período")
+
+min_data = df['Data_Obj'].min()
+max_data = df['Data_Obj'].max()
+
+periodo = st.sidebar.date_input(
+    "Selecione o intervalo de datas:",
+    value=(min_data, max_data),
+    min_value=min_data,
+    max_value=max_data,
+    format="DD/MM/YYYY"
 )
 
-df_filtrado = df[df['Dias'].isin(dias_selecionados)]
+if isinstance(periodo, tuple) and len(periodo) == 2:
+    data_inicio, data_fim = periodo
+    df_filtrado = df[(df['Data_Obj'] >= data_inicio) & (df['Data_Obj'] <= data_fim)]
+elif isinstance(periodo, tuple) and len(periodo) == 1:
+    data_inicio = periodo[0]
+    df_filtrado = df[df['Data_Obj'] == data_inicio]
+else:
+    df_filtrado = df.copy()
 
 if df_filtrado.empty:
-    st.warning("Selecione pelo menos um dia no filtro para visualizar os dados.")
+    st.warning("Nenhum dado encontrado para o período selecionado.")
     st.stop()
 
 # ==========================================
@@ -199,17 +224,17 @@ with c4:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
-# 6. GRÁFICOS PAINEL BI (MATPLOTLIB / SEABORN)
+# 6. GRÁFICOS DO PAINEL (DISPOSIÇÃO 2x2)
 # ==========================================
 
 col_graf1, col_graf2 = st.columns(2)
 
 with col_graf1:
     st.markdown("##### 🎯 NFs Emitidas vs. Meta Diária (120)")
-    fig1, ax1 = plt.subplots(figsize=(7, 4))
+    fig1, ax1 = plt.subplots(figsize=(10, 5))
     
-    sns.barplot(data=df_filtrado, x='Dias', y='Contagem de Nr.NF', color=COLOR_PRIMARY, ax=ax1)
-    ax1.axhline(y=120, color=COLOR_SECONDARY, linestyle='--', linewidth=1.8, label='Meta Diária (120)')
+    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Contagem de Nr.NF', color=COLOR_PRIMARY, ax=ax1)
+    ax1.axhline(y=120, color=COLOR_SECONDARY, linestyle='--', linewidth=2, label='Meta Diária (120)')
     
     ax1.set_xlabel("")
     ax1.set_ylabel("Contagem de NFs")
@@ -217,13 +242,13 @@ with col_graf1:
     sns.despine(top=True, right=True)
     ax1.legend(loc="upper right", frameon=False)
     
-    st.pyplot(fig1)
+    st.pyplot(fig1, use_container_width=True)
 
 with col_graf2:
     st.markdown("##### 📦 Volume Total de Peças Processadas por Dia")
-    fig2, ax2 = plt.subplots(figsize=(7, 4))
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
     
-    sns.lineplot(data=df_filtrado, x='Dias', y='Soma de Qtd Total SKU', color=COLOR_SECONDARY, marker='o', linewidth=2, ax=ax2)
+    ax2.plot(df_filtrado['Dia_Formatado'], df_filtrado['Soma de Qtd Total SKU'], color=COLOR_SECONDARY, marker='o', linewidth=2)
     ax2.fill_between(range(len(df_filtrado)), df_filtrado['Soma de Qtd Total SKU'], color=COLOR_PRIMARY, alpha=0.15)
     
     ax2.set_xlabel("")
@@ -231,17 +256,17 @@ with col_graf2:
     plt.xticks(rotation=90, fontsize=8)
     sns.despine(top=True, right=True)
     
-    st.pyplot(fig2)
+    st.pyplot(fig2, use_container_width=True)
 
 col_graf3, col_graf4 = st.columns(2)
 
 with col_graf3:
     st.markdown("##### ⏳ Saldo de Pendência de Produção Diária")
-    fig3, ax3 = plt.subplots(figsize=(7, 4))
+    fig3, ax3 = plt.subplots(figsize=(10, 5))
     
     cores_pendencia = [COLOR_ALERT if x > 0 else COLOR_SUCCESS for x in df_filtrado['Pendente de Produção']]
     
-    sns.barplot(data=df_filtrado, x='Dias', y='Pendente de Produção', palette=cores_pendencia, ax=ax3)
+    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Pendente de Produção', palette=cores_pendencia, ax=ax3)
     ax3.axhline(y=0, color='gray', linewidth=0.8)
     
     ax3.set_xlabel("")
@@ -249,21 +274,27 @@ with col_graf3:
     plt.xticks(rotation=90, fontsize=8)
     sns.despine(top=True, right=True)
     
-    st.pyplot(fig3)
+    st.pyplot(fig3, use_container_width=True)
 
 with col_graf4:
     st.markdown("##### 🏷️ Diversidade de SKUs Únicos Movimentados por Dia")
-    fig4, ax4 = plt.subplots(figsize=(7, 4))
+    fig4, ax4 = plt.subplots(figsize=(10, 5))
     
-    sns.barplot(data=df_filtrado, x='Dias', y='Contagem de SKU', color=COLOR_ACCENT, ax=ax4)
+    sns.barplot(data=df_filtrado, x='Dia_Formatado', y='Contagem de SKU', color=COLOR_ACCENT, ax=ax4)
     
     ax4.set_xlabel("")
     ax4.set_ylabel("Variedade de SKUs")
     plt.xticks(rotation=90, fontsize=8)
     sns.despine(top=True, right=True)
     
-    st.pyplot(fig4)
+    st.pyplot(fig4, use_container_width=True)
 
+# Exibição da Tabela Tratada
+with st.expander("📄 Visualizar Tabela Tratada da Operação"):
+    st.dataframe(
+        df_filtrado[['Data_Obj', 'Dia_Formatado', 'Contagem de Nr.NF', 'Pedido Diarios', 'Pendente de Produção', 'Soma de Qtd Total SKU', 'Contagem de SKU']],
+        use_container_width=True
+    )
 # Exibição da Tabela Trada
 with st.expander("📄 Visualizar Tabela Tratada da Operação"):
     st.dataframe(df_filtrado, use_container_width=True)
