@@ -25,7 +25,7 @@ TEXT_MUTED = "#CBD5E1"      # Texto Secundário Claro
 COLOR_ALERT = "#FF4D6D"      # Alerta Vermelho Neon
 COLOR_SUCCESS = "#38B000"    # Verde Sucesso
 
-# Estilização CSS Personalizada (Textos em Branco Puro e Inputs Customizados)
+# Estilização CSS Personalizada
 st.markdown(f"""
     <style>
         /* Fundo da Aplicação */
@@ -85,7 +85,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. HEADER DA APLICAÇÃO WITH LOGO
+# 2. HEADER DA APLICAÇÃO
 # ==========================================
 col_logo, col_titulo = st.columns([1, 4])
 
@@ -232,14 +232,22 @@ with c4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Layout do Tema Plotly Dark
+# Layout do Tema Plotly Dark com Fontes Brancas Explícitas
 LAYOUT_PLOTLY = dict(
     paper_bgcolor=BG_CARD,
     plot_bgcolor=BG_CARD,
-    font=dict(color=TEXT_WHITE, family="Sans-serif"),
-    xaxis=dict(gridcolor="#1E293B", tickangle=-45, showgrid=True),
-    yaxis=dict(gridcolor="#1E293B", showgrid=True),
+    font=dict(color=TEXT_WHITE, family="Sans-serif", size=12),
+    xaxis=dict(gridcolor="#1E293B", tickangle=-45, showgrid=True, tickfont=dict(color=TEXT_WHITE)),
+    yaxis=dict(gridcolor="#1E293B", showgrid=True, tickfont=dict(color=TEXT_WHITE)),
     margin=dict(l=40, r=20, t=40, b=50),
+    legend=dict(
+        font=dict(color=TEXT_WHITE, size=12),
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    ),
     hoverlabel=dict(bgcolor="#0A1128", font_color=TEXT_WHITE, font_size=12)
 )
 
@@ -268,7 +276,7 @@ with col_graf1:
         line=dict(color=COLOR_ALERT, dash='dash', width=2),
         hovertemplate="<b>Meta:</b> 120 NFs<extra></extra>"
     ))
-    fig1.update_layout(**LAYOUT_PLOTLY, height=380, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig1.update_layout(**LAYOUT_PLOTLY, height=380)
     st.plotly_chart(fig1, use_container_width=True)
 
 with col_graf2:
