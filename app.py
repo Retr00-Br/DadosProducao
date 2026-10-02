@@ -37,7 +37,7 @@ st.markdown(f"""
             background-color: #0A1128;
         }}
         
-        /* Forçar todos os Rótulos e Textos da Barra Lateral em Branco */
+        /* Forçar Rótulos da Barra Lateral em Branco */
         [data-testid="stSidebar"] label, 
         [data-testid="stSidebar"] .stMarkdown p,
         [data-testid="stSidebar"] h1, 
@@ -85,7 +85,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. HEADER DA APLICAÇÃO
+# 2. HEADER DA APLICAÇÃO WITH LOGO
 # ==========================================
 col_logo, col_titulo = st.columns([1, 4])
 
@@ -232,27 +232,30 @@ with c4:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Layout do Tema Plotly Dark com Fontes Brancas Explícitas
+# Configuração Padrão do Plotly com Legenda Interna
 LAYOUT_PLOTLY = dict(
     paper_bgcolor=BG_CARD,
     plot_bgcolor=BG_CARD,
     font=dict(color=TEXT_WHITE, family="Sans-serif", size=12),
     xaxis=dict(gridcolor="#1E293B", tickangle=-45, showgrid=True, tickfont=dict(color=TEXT_WHITE)),
     yaxis=dict(gridcolor="#1E293B", showgrid=True, tickfont=dict(color=TEXT_WHITE)),
-    margin=dict(l=40, r=20, t=40, b=50),
+    margin=dict(l=40, r=20, t=30, b=50),
+    showlegend=True,
     legend=dict(
-        font=dict(color=TEXT_WHITE, size=12),
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="right",
-        x=1
+        font=dict(color=TEXT_WHITE, size=11),
+        yanchor="top",
+        y=0.96,
+        xanchor="left",
+        x=0.02,
+        bgcolor="rgba(10, 17, 40, 0.75)",
+        bordercolor="rgba(255, 255, 255, 0.25)",
+        borderwidth=1
     ),
     hoverlabel=dict(bgcolor="#0A1128", font_color=TEXT_WHITE, font_size=12)
 )
 
 # ==========================================
-# 6. GRÁFICOS INTERATIVOS (PLOTLY HOVER)
+# 6. GRÁFICOS INTERATIVOS COM LEGENDAS INTERNAS
 # ==========================================
 
 col_graf1, col_graf2 = st.columns(2)
@@ -287,7 +290,7 @@ with col_graf2:
         x=df_filtrado['Dia_Formatado'],
         y=df_filtrado['Soma de Qtd Total SKU'],
         mode='lines+markers',
-        name="Qtd Peças",
+        name="Volume de Peças (SKU)",
         line=dict(color=COLOR_SECONDARY, width=3),
         marker=dict(size=6, color=COLOR_PRIMARY),
         fill='tozeroy',
@@ -302,16 +305,28 @@ col_graf3, col_graf4 = st.columns(2)
 with col_graf3:
     st.markdown("##### ⏳ Saldo de Pendência de Produção Diária")
     
-    cores_pend = [COLOR_ALERT if x > 0 else COLOR_SUCCESS for x in df_filtrado['Pendente de Produção']]
+    # Criamos 2 traços separados para que a legenda identifique Acúmulo (+) e Baixa (-)
+    df_pos = df_filtrado.copy()
+    df_pos['Pendente_Pos'] = df_pos['Pendente de Produção'].apply(lambda x: x if x > 0 else None)
+    df_neg = df_filtrado.copy()
+    df_neg['Pendente_Neg'] = df_neg['Pendente de Produção'].apply(lambda x: x if x <= 0 else None)
     
     fig3 = go.Figure()
     fig3.add_trace(go.Bar(
-        x=df_filtrado['Dia_Formatado'],
-        y=df_filtrado['Pendente de Produção'],
-        marker_color=cores_pend,
+        x=df_pos['Dia_Formatado'],
+        y=df_pos['Pendente_Pos'],
+        name="Pendência (Acúmulo)",
+        marker_color=COLOR_ALERT,
         hovertemplate="<b>Data:</b> %{x}<br><b>Pendência:</b> %{y} pedidos<extra></extra>"
     ))
-    fig3.update_layout(**LAYOUT_PLOTLY, height=380)
+    fig3.add_trace(go.Bar(
+        x=df_neg['Dia_Formatado'],
+        y=df_neg['Pendente_Neg'],
+        name="Saldo Batido / Zerado",
+        marker_color=COLOR_SUCCESS,
+        hovertemplate="<b>Data:</b> %{x}<br><b>Saldo:</b> %{y} pedidos<extra></extra>"
+    ))
+    fig3.update_layout(**LAYOUT_PLOTLY, height=380, barmode='relative')
     st.plotly_chart(fig3, use_container_width=True)
 
 with col_graf4:
@@ -321,6 +336,7 @@ with col_graf4:
     fig4.add_trace(go.Bar(
         x=df_filtrado['Dia_Formatado'],
         y=df_filtrado['Contagem de SKU'],
+        name="SKUs Distintos Movimentados",
         marker_color=COLOR_SECONDARY,
         hovertemplate="<b>Data:</b> %{x}<br><b>SKUs Distintos:</b> %{y}<extra></extra>"
     ))
